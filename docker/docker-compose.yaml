@@ -1,0 +1,215 @@
+version: "3.8"
+
+services:
+  # -----------------------------------------------------
+  # HDFS - NameNode (Hadoop 3.2.1)
+  # -----------------------------------------------------
+  namenode:
+    image: bde2020/hadoop-namenode:2.0.0-hadoop3.2.1-java8
+    container_name: namenode
+    restart: always
+    ports:
+      - "9870:9870"  # NameNode UI
+      - "9000:9000"  # HDFS RPC
+    env_file:
+      - ./hadoop.env
+    environment:
+      - CLUSTER_NAME=hadoop-cluster
+    volumes:
+      - hadoop_namenode:/hadoop/dfs/name
+      - /home/iitgcpuser/weather_analytics/resources:/opt/weather_analytics/resources
+    networks:
+      - hadoop-net
+
+  # -----------------------------------------------------
+  # HDFS - DataNodes (Hadoop 3.2.1)
+  # -----------------------------------------------------
+  datanode1:
+    image: bde2020/hadoop-datanode:2.0.0-hadoop3.2.1-java8
+    container_name: datanode1
+    restart: always
+    depends_on:
+      - namenode
+    volumes:
+      - hadoop_datanode1:/hadoop/dfs/data
+    env_file:
+      - ./hadoop.env
+    environment:
+      SERVICE_PRECONDITION: "namenode:9870"
+    networks:
+      - hadoop-net
+
+  datanode2:
+    image: bde2020/hadoop-datanode:2.0.0-hadoop3.2.1-java8
+    container_name: datanode2
+    restart: always
+    depends_on:
+      - namenode
+    volumes:
+      - hadoop_datanode2:/hadoop/dfs/data
+    env_file:
+      - ./hadoop.env
+    environment:
+      SERVICE_PRECONDITION: "namenode:9870"
+    networks:
+      - hadoop-net
+
+  # -----------------------------------------------------
+  # YARN ResourceManager
+  # -----------------------------------------------------
+  resourcemanager:
+    image: bde2020/hadoop-resourcemanager:2.0.0-hadoop3.2.1-java8
+    container_name: resourcemanager
+    restart: always
+    depends_on:
+      - namenode
+      - datanode1
+      - datanode2
+    ports:
+      - "8088:8088"
+    env_file:
+      - ./hadoop.env
+    environment:
+      SERVICE_PRECONDITION: "namenode:9000 namenode:9870"
+    networks:
+      - hadoop-net
+
+  # -----------------------------------------------------
+  # YARN NodeManagers
+  # -----------------------------------------------------
+  nodemanager1:
+    image: bde2020/hadoop-nodemanager:2.0.0-hadoop3.2.1-java8
+    container_name: nodemanager1
+    restart: always
+    depends_on:
+      - resourcemanager
+    env_file:
+      - ./hadoop.env
+    environment:
+      SERVICE_PRECONDITION: "resourcemanager:8088"
+    networks:
+      - hadoop-net
+
+  nodemanager2:
+    image: bde2020/hadoop-nodemanager:2.0.0-hadoop3.2.1-java8
+    container_name: nodemanager2
+    restart: always
+    depends_on:
+      - resourcemanager
+    env_file:
+      - ./hadoop.env
+    environment:
+      SERVICE_PRECONDITION: "resourcemanager:8088"
+    networks:
+      - hadoop-net
+
+  # =====================================================
+  #  HIVE + METASTORE + POSTGRESQL
+  # =====================================================
+
+  hive-metastore-postgresql:
+    image: ramilu90/hive-metastore-postgresql:1.0.0
+    container_name: hive-metastore-postgresql
+    restart: always
+    environment:
+      POSTGRES_USER: hive
+      POSTGRES_PASSWORD: hive
+      POSTGRES_DB: metastore
+    volumes:
+      - metastore-db2:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - hadoop-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hive"]
+      interval: 5s
+      retries: 20
+      timeout: 5s
+
+  hive-metastore-init:
+    image: ramilu90/hive-metastore-init:1.0.0
+    container_name: hive-metastore-init
+    depends_on:
+      hive-metastore-postgresql:
+        condition: service_healthy
+      namenode:
+        condition: service_started
+    env_file:
+      - ./hadoop.env
+    command: ["schematool", "-dbType", "postgres", "-upgradeSchema", "-verbose"]
+    networks:
+      - hadoop-net
+
+  hive-metastore:
+    image: ramilu90/hive-metastore:1.0.0
+    container_name: hive-metastore
+    env_file:
+      - ./hadoop.env
+    environment:
+      - HADOOP_USER_NAME=root
+    depends_on:
+      hive-metastore-init:
+        condition: service_completed_successfully
+      namenode:
+        condition: service_started
+    command: /opt/hive/bin/hive --service metastore
+    ports:
+      - "9083:9083"
+    networks:
+      - hadoop-net
+
+  # -----------------------------------------------------
+  # HiveServer2
+  # -----------------------------------------------------
+  hive-server:
+    image: ramilu90/hive-server:1.0.0
+    container_name: hive-server
+    platform: linux/amd64
+    env_file:
+      - ./hadoop.env
+    environment:
+      - HADOOP_USER_NAME=root
+    volumes:
+      - /home/iitgcpuser/weather_analytics/resources:/opt/weather_analytics/resources
+    depends_on:
+      hive-metastore:
+        condition: service_started
+      namenode:
+        condition: service_started
+    ports:
+      - "10000:10000"
+    command: /opt/hive/bin/hiveserver2
+    networks:
+      - hadoop-net
+
+  # =====================================================
+  # ZEPPELIN (Added)
+  # =====================================================
+  zeppelin:
+    image: apache/zeppelin:0.9.0
+    container_name: zeppelin
+    platform: linux/amd64
+    restart: always
+    depends_on:
+      - namenode
+      - hive-server
+    ports:
+      - "8089:8080"
+    volumes:
+      - /home/iitgcpuser/weather_analytics/resources:/opt/resources/weather_analytics/input
+    networks:
+      - hadoop-net
+
+# ======================================================
+# VOLUMES & NETWORKS
+# ======================================================
+volumes:
+  hadoop_namenode:
+  hadoop_datanode1:
+  hadoop_datanode2:
+  metastore-db2:
+
+networks:
+  hadoop-net:
+    driver: bridge
