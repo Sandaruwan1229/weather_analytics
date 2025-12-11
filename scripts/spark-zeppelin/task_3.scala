@@ -1,0 +1,155 @@
+import org.apache.spark.sql.SparkSession
+import org.apache.spark.sql.functions._
+import org.apache.spark.sql.types._
+import org.apache.spark.sql.expressions.Window
+import java.text.SimpleDateFormat
+import java.util.Date
+
+val spark = SparkSession.builder().
+            appName("Weather Analytics")
+            .config("spark.sql.adaptive.enabled", "true")
+            .getOrCreate()
+
+
+val weatherDataPath = "/opt/resources/weather_analytics/input/weatherData.csv"
+val locationDataPath = "/opt/resources/weather_analytics/input/locationData.csv"
+
+val weatherDF = spark.read.option("header", "true")
+                        .option("inferSchema", "true")
+                        .csv(weatherDataPath)
+
+val locationDF = spark.read.option("header", "true")
+                        .option("inferSchema", "true")
+                        .csv(locationDataPath)
+                        
+
+
+def parseWeatherDate(dateStr: String): java.sql.Date ={
+    if (dateStr == null || dateStr.trim.isEmpty) return null
+    
+    val trimDate = dateStr.trim();
+    val formatMD = new SimpleDateFormat("MM/dd/yyyy")
+    val formatDM = new SimpleDateFormat("dd/MM/yyyy")
+    
+    try {
+            val date = try{
+              formatMD.parse(trimDate);  
+            } catch {
+                case _: Exception => formatDM.parse(trimDate);
+            }
+            new java.sql.Date(date.getTime)
+        } catch {
+            case _: Exception => null
+        }
+}
+
+def getYear(dateStr: String): Int ={
+    val date = parseWeatherDate(dateStr)
+    if (date != null){
+        val cal = java.util.Calendar.getInstance()
+        cal.setTime(date)
+        cal.get(java.util.Calendar.YEAR)
+    } else 0
+}
+
+def getMonth(dateStr: String): Int ={
+    val date = parseWeatherDate(dateStr)
+    if (date != null){
+        val cal = java.util.Calendar.getInstance()
+        cal.setTime(date)
+        cal.get(java.util.Calendar.MONTH) +1
+    } else 0
+}
+
+def getWeekOfYear(dateStr: String): Int ={
+    val date = parseWeatherDate(dateStr)
+    if (date != null){
+        val cal = java.util.Calendar.getInstance()
+        cal.setTime(date)
+        cal.get(java.util.Calendar.WEEK_OF_YEAR)
+    } else 0
+}
+
+def isHighRadiation(radiation: Double): Boolean ={
+  radiation != null && radiation > 15.0
+}
+
+import org.apache.spark.sql.functions.udf
+
+val parseWeatherDateUDF = udf(parseWeatherDate _)
+val getYearUDF = udf(getYear _)
+val getMonthUDF = udf(getMonth _)
+val getWeekOfYearUDF = udf(getWeekOfYear _)
+val isHighRadiationUDF = udf(isHighRadiation _)
+
+val cleanWeatherDF = weatherDF
+  .withColumnRenamed("shortwave_radiation_sum (MJ/m²)", "shortwave_radiation_sum")
+  .filter(col("location_id").isNotNull)
+  .filter(col("date").isNotNull)
+  .filter(col("shortwave_radiation_sum").isNotNull)
+  .withColumn("year_val", getYearUDF(col("date")))
+  .withColumn("month_val", getMonthUDF(col("date")))
+  .withColumn("week_val", getWeekOfYearUDF(col("date")))
+  .withColumn("is_high_radiation", isHighRadiationUDF(col("shortwave_radiation_sum")))
+  .withColumn("temp_max", col("temperature_2m_max").cast(DoubleType)) // Replace 'temperature_2m_max' with actual column name
+
+val joinedDF = cleanWeatherDF.join(locationDF, "location_id")
+
+val monthlyRadiationStats = joinedDF.groupBy("city_name", "year_val", "month_val")
+                                    .agg(
+                                      count("*").alias("total_records"),
+                                      sum(when(col("is_high_radiation"), 1).otherwise(0)).alias("high_radiation_count"),
+                                      avg("shortwave_radiation_sum").alias("avg_radiation"),
+                                      max("shortwave_radiation_sum").alias("max_radiation"),
+                                      min("shortwave_radiation_sum").alias("min_radiation")
+                                    )
+                                    .withColumn("high_radiation_percentage",
+                                      round((col("high_radiation_count").cast("double") / col("total_records") * 100), 2))
+                                    .withColumn("year_month", concat(col("year_val"), lit("-"), format_string("%02d", col("month_val"))))
+                                    .filter(col("total_records") >= 10)
+
+println("Top 20 Months with highest Radiation Percentage:")
+monthlyRadiationStats.orderby(desc("high_radiation_percentage"))
+                      .select("city_name", "year_month", "high_radiation_percentage", "avg_radiation").show(20)
+
+
+val overallRadiationStats = joinedDF.groupBy("city_name")
+  .agg(
+    count("*").alias("total_records"),
+    sum(when(col("is_high_radiation"), 1).otherwise(0)).alias("high_radiation_count"),
+    avg("shortwave_radiation_sum").alias("avg_radiation"),
+    max("shortwave_radiation_sum").alias("max_radiation"),
+    min("shortwave_radiation_sum").alias("min_radiation")
+  )
+  .withColumn("overall_high_radiation_percentage",
+    round((col("high_radiation_count").cast("double") / col("total_records") * 100), 2))
+  .filter(col("total_records") >= 100)
+
+println("Overall Radiation Analysis by city")
+overallRadiationStatsorderby(desc("overall_high_radiation_percentage"))
+  .select("city_name", "overall_high_radiation_percentage", "avg_radiation").show(20)
+
+
+//
+val monthlyStatsDF = cleanWeatherDF
+  .groupBy("year_val", "month_val")
+  .agg(avg("temp_max").as("avg_monthly_temp"))
+
+
+val windowSpec = Window.partitionBy("year_val").orderBy(desc("avg_monthly_temp"))
+
+val rankedMonthsDF = monthlyStatsDF
+  .withColumn("rank", row_number().over(windowSpec))
+  .filter($"rank" <= 5)
+  .select("year_val", "month_val")
+
+val hottestMonthsDataDF = cleanWeatherDF.join(rankedMonthsDF, Seq("year_val", "month_val"), "inner")
+
+val resultDF = hottestMonthsDataDF
+  .groupBy("year_val", "month_val", "week_val")
+  .agg(max("temp_max").as("weekly_max_temp"))
+  .orderBy("year_val", "month_val", "week_val")
+
+resultDF.show(false)
+
+
