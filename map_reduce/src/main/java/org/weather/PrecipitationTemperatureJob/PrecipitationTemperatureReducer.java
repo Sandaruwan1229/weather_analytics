@@ -1,4 +1,4 @@
-package org.weather.mapreduce.PrecipitationTemperatureJob;
+package org.weather.PrecipitationTemperatureJob;
 
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.Reducer;

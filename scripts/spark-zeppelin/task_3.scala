@@ -4,6 +4,10 @@ import org.apache.spark.sql.types._
 import org.apache.spark.sql.expressions.Window
 import java.text.SimpleDateFormat
 import java.util.Date
+import org.apache.spark.sql.functions.udf
+import org.apache.spark.sql.expressions.Window
+import org.apache.spark.sql.functions._
+import org.apache.spark.sql.types._
 
 val spark = SparkSession.builder().
             appName("Weather Analytics")
@@ -70,11 +74,14 @@ def getWeekOfYear(dateStr: String): Int ={
     } else 0
 }
 
-def isHighRadiation(radiation: Double): Boolean ={
-  radiation != null && radiation > 15.0
+def isHighRadiation(radiation: java.lang.Double): Boolean = {
+  if (radiation == null) {
+    false
+  } else {
+    radiation > 15.0
+  }
 }
 
-import org.apache.spark.sql.functions.udf
 
 val parseWeatherDateUDF = udf(parseWeatherDate _)
 val getYearUDF = udf(getYear _)
@@ -126,7 +133,7 @@ val overallRadiationStats = joinedDF.groupBy("city_name")
   .filter(col("total_records") >= 100)
 
 println("Overall Radiation Analysis by city")
-overallRadiationStatsorderby(desc("overall_high_radiation_percentage"))
+overallRadiationStats.orderBy(desc("overall_high_radiation_percentage"))
   .select("city_name", "overall_high_radiation_percentage", "avg_radiation").show(20)
 
 

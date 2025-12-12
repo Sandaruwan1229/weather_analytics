@@ -1,4 +1,4 @@
-package org.weather.mapreduce.PrecipitationTemperatureJob;
+package org.weather.PrecipitationTemperatureJob;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;

@@ -1,4 +1,4 @@
-package org.weather.mapreduce.HighestPrecipitationJob;
+package org.weather.HighestPrecipitationJob;
 
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.Reducer;
