@@ -1,0 +1,75 @@
+plugins {
+    id 'java'
+    id 'application'
+}
+
+group = 'org.weather'
+version = '1.0'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(11)
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+ext {
+    hadoopVersion = '3.3.4'
+}
+
+dependencies {
+    // Commons Lang
+    implementation 'commons-lang:commons-lang:2.6'
+
+    // Hadoop Client
+    implementation "org.apache.hadoop:hadoop-client:$hadoopVersion"
+
+    // Hadoop Common
+    implementation "org.apache.hadoop:hadoop-common:$hadoopVersion"
+
+    // Hadoop YARN Client
+    implementation "org.apache.hadoop:hadoop-yarn-client:$hadoopVersion"
+
+    // Hadoop MapReduce Client Core
+    implementation "org.apache.hadoop:hadoop-mapreduce-client-core:$hadoopVersion"
+
+    // Hadoop MapReduce Client App (Optional)
+    implementation "org.apache.hadoop:hadoop-mapreduce-client-app:$hadoopVersion"
+
+    // JSON library
+    implementation 'org.json:json:20210307'
+}
+
+jar {
+
+    exclude 'META-INF/*.SF'
+    exclude 'META-INF/*.DSA'
+    exclude 'META-INF/*.RSA'
+    exclude 'META-INF/LICENSE*'
+
+    // Create an uber JAR like Maven Shade
+    from {
+        configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) }
+    }
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}
+
+// 1. Create a task to copy the jar
+tasks.register('copyJar', Copy) {
+    // Uses the output of the 'jar' task automatically
+    from jar
+
+    // Moves up one level from 'map_reduce' to 'weather_analytics', then into 'resources'
+    into layout.projectDirectory.dir('../resources')
+
+    // Optional: Print a message to the console so you know it happened
+    doLast {
+        println "JAR copied to weather_analytics/resources/"
+    }
+}
+
+// 2. Make sure the copy happens automatically every time you run 'gradle build'
+build.finalizedBy('copyJar')
