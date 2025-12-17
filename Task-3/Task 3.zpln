@@ -1,0 +1,605 @@
+﻿{
+  "paragraphs": [
+    {
+      "text": "%spark\nimport org.apache.spark.sql.SparkSession\nimport org.apache.spark.sql.functions._\nimport java.text.SimpleDateFormat\nimport org.apache.spark.ml.feature.VectorAssembler\nimport org.apache.spark.ml.regression._\nimport org.apache.spark.ml.evaluation.RegressionEvaluator\n\nval weatherDataPath = \"/opt/resources/weather_analytics/input/weatherData.csv\"\n\n// Date parser (your given logic)\ndef parseWeatherDate(dateStr: String): java.sql.Date = {\n  if (dateStr == null || dateStr.trim.isEmpty) return null\n  val trimDate = dateStr.trim()\n  val formatMD = new SimpleDateFormat(\"MM/dd/yyyy\")\n  val formatDM = new SimpleDateFormat(\"dd/MM/yyyy\")\n  try {\n    val date = try formatMD.parse(trimDate) catch { case _: Exception => formatDM.parse(trimDate) }\n    new java.sql.Date(date.getTime)\n  } catch {\n    case _: Exception => null\n  }\n}\n\nval parseDateUDF = udf(parseWeatherDate _)\n\n// Load CSV\nval rawDF = spark.read\n  .option(\"header\", \"true\")\n  .option(\"inferSchema\", \"true\")\n  .csv(weatherDataPath)\n\n// Parse date + extract month/year\nval weatherDF = rawDF\n  .withColumn(\"parsed_date\", parseDateUDF(col(\"date\")))\n  .withColumn(\"month\", month(col(\"parsed_date\")))\n  .withColumn(\"year\", year(col(\"parsed_date\")))",
+      "user": "anonymous",
+      "dateUpdated": "2025-12-17T07:37:48+0000",
+      "progress": 0,
+      "config": {
+        "editorSetting": {
+          "language": "scala",
+          "editOnDblClick": false,
+          "completionKey": "TAB",
+          "completionSupport": true
+        },
+        "colWidth": 12,
+        "editorMode": "ace/mode/scala",
+        "fontSize": 9,
+        "results": {},
+        "enabled": true
+      },
+      "settings": {
+        "params": {},
+        "forms": {}
+      },
+      "results": {
+        "code": "SUCCESS",
+        "msg": [
+          {
+            "type": "TEXT",
+            "data": "import org.apache.spark.sql.SparkSession\nimport org.apache.spark.sql.functions._\nimport java.text.SimpleDateFormat\nimport org.apache.spark.ml.feature.VectorAssembler\nimport org.apache.spark.ml.regression._\nimport org.apache.spark.ml.evaluation.RegressionEvaluator\n\u001b[1m\u001b[34mweatherDataPath\u001b[0m: \u001b[1m\u001b[32mString\u001b[0m = /opt/resources/weather_analytics/input/weatherData.csv\n\u001b[1m\u001b[34mparseWeatherDate\u001b[0m: \u001b[1m\u001b[32m(dateStr: String)java.sql.Date\u001b[0m\n\u001b[1m\u001b[34mparseDateUDF\u001b[0m: \u001b[1m\u001b[32morg.apache.spark.sql.expressions.UserDefinedFunction\u001b[0m = UserDefinedFunction(<function1>,DateType,Some(List(StringType)))\n\u001b[1m\u001b[34mrawDF\u001b[0m: \u001b[1m\u001b[32morg.apache.spark.sql.DataFrame\u001b[0m = [location_id: int, date: string ... 19 more fields]\n\u001b[1m\u001b[34mweatherDF\u001b[0m: \u001b[1m\u001b[32morg.apache.spark.sql.DataFrame\u001b[0m = [lo..."
+          }
+        ]
+      },
+      "apps": [],
+      "runtimeInfos": {},
+      "progressUpdateIntervalMs": 500,
+      "jobName": "paragraph_1765957068714_977695962",
+      "id": "paragraph_1765913040952_2033175609",
+      "dateCreated": "2025-12-17T07:37:48+0000",
+      "status": "READY",
+      "focus": true,
+      "$$hashKey": "object:1541"
+    },
+    {
+      "text": "%spark\n\n// Identify All Numeric Columns Automatically\nval numericCols = weatherDF.schema.fields\n  .filter(f => f.dataType.simpleString == \"double\" || f.dataType.simpleString == \"int\")\n  .map(_.name)\n  \nval et0Col = \"et0_fao_evapotranspiration (mm)\"\n\nval corrResults = numericCols\n  .filter(_ != et0Col)\n  .map { colName =>\n    val corr = weatherDF.stat.corr(colName, et0Col)\n    (colName, corr)\n  }\n  .toSeq\n  .toDF(\"Feature\", \"Correlation_with_ET0\")\n  .orderBy(desc(\"Correlation_with_ET0\"))\n\ncorrResults.show(50, truncate = false)",
+      "user": "anonymous",
+      "dateUpdated": "2025-12-17T07:37:48+0000",
+      "progress": 0,
+      "config": {
+        "editorSetting": {
+          "language": "scala",
+          "editOnDblClick": false,
+          "completionKey": "TAB",
+          "completionSupport": true
+        },
+        "colWidth": 12,
+        "editorMode": "ace/mode/scala",
+        "fontSize": 9,
+        "results": {},
+        "enabled": true
+      },
+      "settings": {
+        "params": {},
+        "forms": {}
+      },
+      "results": {
+        "code": "SUCCESS",
+        "msg": [
+          {
+            "type": "TEXT",
+            "data": "+-------------------------------+--------------------+\n|Feature                        |Correlation_with_ET0|\n+-------------------------------+--------------------+\n|shortwave_radiation_sum (MJ/m²)|0.8725294040835978  |\n|sunshine_duration (s)          |0.7234544998509875  |\n|temperature_2m_max (°C)        |0.7001202919217345  |\n|temperature_2m_mean (°C)       |0.5662160792674608  |\n|apparent_temperature_max (°C)  |0.5259143266869455  |\n|apparent_temperature_mean (°C) |0.3839552761937409  |\n|daylight_duration (s)          |0.3540859821740975  |\n|wind_speed_10m_max (km/h)      |0.3468321455333235  |\n|temperature_2m_min (°C)        |0.34538739119768463 |\n|apparent_temperature_min (°C)  |0.24433446583140633 |\n|wind_gusts_10m_max (km/h)      |0.21998570366242098 |\n|wind_direction_10m_dominant (°)|0.05040880870313646 |\n|year                           |0.03441931000751    |\n|location_id                    |0.021612114868855354|\n|month                          |-0.2438004649662561 |\n|rain_sum (mm)                  |-0.5373981470835942 |\n|precipitation_sum (mm)         |-0.5373981470835942 |\n|weather_code (wmo code)        |-0.5383288329265224 |\n|precipitation_hours (h)        |-0.715516554631391  |\n+-------------------------------+--------------------+\n\n\u001b[1m\u001b[34mnumericCols\u001b[0m: \u001b[1m\u001b[32mArray[String]\u001b[0m = Array(location_id, weather_code (wmo code), temperature_2m_max (°C), temperature_2m_min (°C), temperature_2m_mean (°C), apparent_temperature_max (°C), apparent_temperature_min (°C), apparent_temperature_mean (°C), daylight_duration (s), sunshine_duration (s), precipitation_sum (mm), rain_sum (mm), precipitation_hours (h), wind_speed_10m_max (km/h), wind_gusts_10m_max (km/h), wind_direction_10m_dominant (°), shortwave_radiation_sum (MJ/m²), et0_fao_evapotranspiration (mm), month, year)\n\u001b[1m\u001b[34met0Col\u001b[0m: \u001b[1m\u001b[32mString\u001b[0m = et0_fao_evapotranspiration (mm)\n\u001b[1m\u001b[34mcorrResults\u001b[0m: \u001b[1m\u001b[32morg.apache.spark.sql.Dataset[org.apache.spark.sql.Row]\u001b[0m = [Feature: string, Correlation_with_ET0: double]\n"
+          }
+        ]
+      },
+      "apps": [],
+      "runtimeInfos": {},
+      "progressUpdateIntervalMs": 500,
+      "jobName": "paragraph_1765957068714_814660847",
+      "id": "paragraph_1765913048925_1266965666",
+      "dateCreated": "2025-12-17T07:37:48+0000",
+      "status": "READY",
+      "$$hashKey": "object:1542"
+    },
+    {
+      "text": "%spark\nval selectedDF = weatherDF\n  .filter(col(\"month\") === 5)\n  .select(\n    col(\"precipitation_hours (h)\").cast(\"double\").alias(\"precipitation_hours\"),\n    col(\"sunshine_duration (s)\").cast(\"double\").alias(\"sunshine_duration\"),\n    col(\"wind_speed_10m_max (km/h)\").cast(\"double\").alias(\"wind_speed\"),\n    col(\"et0_fao_evapotranspiration (mm)\").cast(\"double\").alias(\"et0\")\n  )\n  .na.drop()\n\nselectedDF.describe().show()",
+      "user": "anonymous",
+      "dateUpdated": "2025-12-17T07:37:48+0000",
+      "progress": 0,
+      "config": {
+        "editorSetting": {
+          "language": "scala",
+          "editOnDblClick": false,
+          "completionKey": "TAB",
+          "completionSupport": true
+        },
+        "colWidth": 12,
+        "editorMode": "ace/mode/scala",
+        "fontSize": 9,
+        "results": {},
+        "enabled": true
+      },
+      "settings": {
+        "params": {},
+        "forms": {}
+      },
+      "results": {
+        "code": "SUCCESS",
+        "msg": [
+          {
+            "type": "TEXT",
+            "data": "+-------+-------------------+-----------------+------------------+------------------+\n|summary|precipitation_hours|sunshine_duration|        wind_speed|               et0|\n+-------+-------------------+-----------------+------------------+------------------+\n|  count|              12555|            12555|             12555|             12555|\n|   mean|  8.011867781760255|34302.53246515336|17.848936678614105| 4.225671843886895|\n| stddev|  6.946432602146942|9210.728019673994| 7.709660922461038|1.1799446246284124|\n|    min|                0.0|              0.0|               2.5|              0.59|\n|    max|               24.0|         42149.11|              48.3|              8.45|\n+-------+-------------------+-----------------+------------------+------------------+\n\n\u001b[1m\u001b[34mselectedDF\u001b[0m: \u001b[1m\u001b[32morg.apache.spark.sql.DataFrame\u001b[0m = [precipitation_hours: double, sunshine_duration: double ... 2 more fields]\n"
+          }
+        ]
+      },
+      "apps": [],
+      "runtimeInfos": {},
+      "progressUpdateIntervalMs": 500,
+      "jobName": "paragraph_1765957068714_653893016",
+      "id": "paragraph_1765913304587_593293230",
+      "dateCreated": "2025-12-17T07:37:48+0000",
+      "status": "READY",
+      "$$hashKey": "object:1543"
+    },
+    {
+      "text": "%spark\nimport org.apache.spark.ml.feature.VectorAssembler\n\nval assembler = new VectorAssembler()\n  .setInputCols(Array(\n    \"precipitation_hours\",\n    \"sunshine_duration\",\n    \"wind_speed\"\n  ))\n  .setOutputCol(\"features\")\n\nval finalDF = assembler.transform(selectedDF)",
+      "user": "anonymous",
+      "dateUpdated": "2025-12-17T07:37:48+0000",
+      "progress": 0,
+      "config": {
+        "editorSetting": {
+          "language": "scala",
+          "editOnDblClick": false,
+          "completionKey": "TAB",
+          "completionSupport": true
+        },
+        "colWidth": 12,
+        "editorMode": "ace/mode/scala",
+        "fontSize": 9,
+        "results": {},
+        "enabled": true
+      },
+      "settings": {
+        "params": {},
+        "forms": {}
+      },
+      "results": {
+        "code": "SUCCESS",
+        "msg": [
+          {
+            "type": "TEXT",
+            "data": "import org.apache.spark.ml.feature.VectorAssembler\n\u001b[1m\u001b[34massembler\u001b[0m: \u001b[1m\u001b[32morg.apache.spark.ml.feature.VectorAssembler\u001b[0m = vecAssembler_c58eada6aeb0\n\u001b[1m\u001b[34mfinalDF\u001b[0m: \u001b[1m\u001b[32morg.apache.spark.sql.DataFrame\u001b[0m = [precipitation_hours: double, sunshine_duration: double ... 3 more fields]\n"
+          }
+        ]
+      },
+      "apps": [],
+      "runtimeInfos": {},
+      "progressUpdateIntervalMs": 500,
+      "jobName": "paragraph_1765957068715_1611317261",
+      "id": "paragraph_1765913397228_619835691",
+      "dateCreated": "2025-12-17T07:37:48+0000",
+      "status": "READY",
+      "$$hashKey": "object:1544"
+    },
+    {
+      "text": "%spark\nval Array(trainDF, testDF) = finalDF.randomSplit(Array(0.8, 0.2), seed = 42)",
+      "user": "anonymous",
+      "dateUpdated": "2025-12-17T07:37:48+0000",
+      "progress": 0,
+      "config": {
+        "editorSetting": {
+          "language": "scala",
+          "editOnDblClick": false,
+          "completionKey": "TAB",
+          "completionSupport": true
+        },
+        "colWidth": 12,
+        "editorMode": "ace/mode/scala",
+        "fontSize": 9,
+        "results": {},
+        "enabled": true
+      },
+      "settings": {
+        "params": {},
+        "forms": {}
+      },
+      "results": {
+        "code": "SUCCESS",
+        "msg": [
+          {
+            "type": "TEXT",
+            "data": "\u001b[1m\u001b[34mtrainDF\u001b[0m: \u001b[1m\u001b[32morg.apache.spark.sql.Dataset[org.apache.spark.sql.Row]\u001b[0m = [precipitation_hours: double, sunshine_duration: double ... 3 more fields]\n\u001b[1m\u001b[34mtestDF\u001b[0m: \u001b[1m\u001b[32morg.apache.spark.sql.Dataset[org.apache.spark.sql.Row]\u001b[0m = [precipitation_hours: double, sunshine_duration: double ... 3 more fields]\n"
+          }
+        ]
+      },
+      "apps": [],
+      "runtimeInfos": {},
+      "progressUpdateIntervalMs": 500,
+      "jobName": "paragraph_1765957068715_984743851",
+      "id": "paragraph_1765913742794_1846229734",
+      "dateCreated": "2025-12-17T07:37:48+0000",
+      "status": "READY",
+      "$$hashKey": "object:1545"
+    },
+    {
+      "text": "%spark\nimport org.apache.spark.ml.evaluation.RegressionEvaluator\n\nval evaluator = new RegressionEvaluator()\n  .setLabelCol(\"et0\")\n  .setPredictionCol(\"prediction\")",
+      "user": "anonymous",
+      "dateUpdated": "2025-12-17T07:37:48+0000",
+      "progress": 0,
+      "config": {
+        "editorSetting": {
+          "language": "scala",
+          "editOnDblClick": false,
+          "completionKey": "TAB",
+          "completionSupport": true
+        },
+        "colWidth": 12,
+        "editorMode": "ace/mode/scala",
+        "fontSize": 9,
+        "results": {},
+        "enabled": true
+      },
+      "settings": {
+        "params": {},
+        "forms": {}
+      },
+      "results": {
+        "code": "SUCCESS",
+        "msg": [
+          {
+            "type": "TEXT",
+            "data": "import org.apache.spark.ml.evaluation.RegressionEvaluator\n\u001b[1m\u001b[34mevaluator\u001b[0m: \u001b[1m\u001b[32morg.apache.spark.ml.evaluation.RegressionEvaluator\u001b[0m = regEval_882978c552ab\n"
+          }
+        ]
+      },
+      "apps": [],
+      "runtimeInfos": {},
+      "progressUpdateIntervalMs": 500,
+      "jobName": "paragraph_1765957068715_1942859251",
+      "id": "paragraph_1765913936636_2141594993",
+      "dateCreated": "2025-12-17T07:37:48+0000",
+      "status": "READY",
+      "$$hashKey": "object:1546"
+    },
+    {
+      "text": "%spark\n",
+      "user": "anonymous",
+      "dateUpdated": "2025-12-17T07:37:48+0000",
+      "progress": 0,
+      "config": {
+        "editorSetting": {
+          "language": "scala",
+          "editOnDblClick": false,
+          "completionKey": "TAB",
+          "completionSupport": true
+        },
+        "colWidth": 12,
+        "editorMode": "ace/mode/scala",
+        "fontSize": 9,
+        "results": {},
+        "enabled": true
+      },
+      "settings": {
+        "params": {},
+        "forms": {}
+      },
+      "results": {
+        "code": "SUCCESS",
+        "msg": []
+      },
+      "apps": [],
+      "runtimeInfos": {},
+      "progressUpdateIntervalMs": 500,
+      "jobName": "paragraph_1765957068715_1846950748",
+      "id": "paragraph_1765914110443_1040438822",
+      "dateCreated": "2025-12-17T07:37:48+0000",
+      "status": "READY",
+      "$$hashKey": "object:1547"
+    },
+    {
+      "text": "%spark\nimport org.apache.spark.ml.regression.LinearRegression\n\nval lr = new LinearRegression()\n  .setLabelCol(\"et0\")\n  .setFeaturesCol(\"features\")\n\nval lrModel = lr.fit(trainDF)\nval lrPred = lrModel.transform(testDF)\n\nval lrRMSE = evaluator.setMetricName(\"rmse\").evaluate(lrPred)\nval lrR2   = evaluator.setMetricName(\"r2\").evaluate(lrPred)\n\nprintln(s\"Linear Regression -> RMSE: $lrRMSE , R2: $lrR2\")",
+      "user": "anonymous",
+      "dateUpdated": "2025-12-17T07:37:48+0000",
+      "progress": 0,
+      "config": {
+        "editorSetting": {
+          "language": "scala",
+          "editOnDblClick": false,
+          "completionKey": "TAB",
+          "completionSupport": true
+        },
+        "colWidth": 12,
+        "editorMode": "ace/mode/scala",
+        "fontSize": 9,
+        "results": {},
+        "enabled": true
+      },
+      "settings": {
+        "params": {},
+        "forms": {}
+      },
+      "results": {
+        "code": "SUCCESS",
+        "msg": [
+          {
+            "type": "TEXT",
+            "data": "Linear Regression -> RMSE: 0.5502807198322689 , R2: 0.7815392076411974\nimport org.apache.spark.ml.regression.LinearRegression\n\u001b[1m\u001b[34mlr\u001b[0m: \u001b[1m\u001b[32morg.apache.spark.ml.regression.LinearRegression\u001b[0m = linReg_0b3109c987fb\n\u001b[1m\u001b[34mlrModel\u001b[0m: \u001b[1m\u001b[32morg.apache.spark.ml.regression.LinearRegressionModel\u001b[0m = linReg_0b3109c987fb\n\u001b[1m\u001b[34mlrPred\u001b[0m: \u001b[1m\u001b[32morg.apache.spark.sql.DataFrame\u001b[0m = [precipitation_hours: double, sunshine_duration: double ... 4 more fields]\n\u001b[1m\u001b[34mlrRMSE\u001b[0m: \u001b[1m\u001b[32mDouble\u001b[0m = 0.5502807198322689\n\u001b[1m\u001b[34mlrR2\u001b[0m: \u001b[1m\u001b[32mDouble\u001b[0m = 0.7815392076411974\n"
+          }
+        ]
+      },
+      "apps": [],
+      "runtimeInfos": {},
+      "progressUpdateIntervalMs": 500,
+      "jobName": "paragraph_1765957068715_411304544",
+      "id": "paragraph_1765914009416_1785317393",
+      "dateCreated": "2025-12-17T07:37:48+0000",
+      "status": "READY",
+      "$$hashKey": "object:1548"
+    },
+    {
+      "text": "%spark\nimport org.apache.spark.ml.regression.RandomForestRegressor\n\nval rf = new RandomForestRegressor()\n  .setLabelCol(\"et0\")\n  .setFeaturesCol(\"features\")\n  .setNumTrees(50)\n\nval rfModel = rf.fit(trainDF)\nval rfPred = rfModel.transform(testDF)\n\nval rfRMSE = evaluator.setMetricName(\"rmse\").evaluate(rfPred)\nval rfR2   = evaluator.setMetricName(\"r2\").evaluate(rfPred)\n\nprintln(s\"Random Forest -> RMSE: $rfRMSE , R2: $rfR2\")",
+      "user": "anonymous",
+      "dateUpdated": "2025-12-17T07:37:48+0000",
+      "progress": 0,
+      "config": {
+        "editorSetting": {
+          "language": "scala",
+          "editOnDblClick": false,
+          "completionKey": "TAB",
+          "completionSupport": true
+        },
+        "colWidth": 12,
+        "editorMode": "ace/mode/scala",
+        "fontSize": 9,
+        "results": {},
+        "enabled": true
+      },
+      "settings": {
+        "params": {},
+        "forms": {}
+      },
+      "results": {
+        "code": "SUCCESS",
+        "msg": [
+          {
+            "type": "TEXT",
+            "data": "Random Forest -> RMSE: 0.5055939349796188 , R2: 0.8155797432802966\nimport org.apache.spark.ml.regression.RandomForestRegressor\n\u001b[1m\u001b[34mrf\u001b[0m: \u001b[1m\u001b[32morg.apache.spark.ml.regression.RandomForestRegressor\u001b[0m = rfr_0d1a809a1665\n\u001b[1m\u001b[34mrfModel\u001b[0m: \u001b[1m\u001b[32morg.apache.spark.ml.regression.RandomForestRegressionModel\u001b[0m = RandomForestRegressionModel (uid=rfr_0d1a809a1665) with 50 trees\n\u001b[1m\u001b[34mrfPred\u001b[0m: \u001b[1m\u001b[32morg.apache.spark.sql.DataFrame\u001b[0m = [precipitation_hours: double, sunshine_duration: double ... 4 more fields]\n\u001b[1m\u001b[34mrfRMSE\u001b[0m: \u001b[1m\u001b[32mDouble\u001b[0m = 0.5055939349796188\n\u001b[1m\u001b[34mrfR2\u001b[0m: \u001b[1m\u001b[32mDouble\u001b[0m = 0.8155797432802966\n"
+          }
+        ]
+      },
+      "apps": [],
+      "runtimeInfos": {},
+      "progressUpdateIntervalMs": 500,
+      "jobName": "paragraph_1765957068715_1187323211",
+      "id": "paragraph_1765914071467_1627557734",
+      "dateCreated": "2025-12-17T07:37:48+0000",
+      "status": "READY",
+      "$$hashKey": "object:1549"
+    },
+    {
+      "text": "%spark\nimport org.apache.spark.ml.regression.GBTRegressor\n\nval gbt = new GBTRegressor()\n  .setLabelCol(\"et0\")\n  .setFeaturesCol(\"features\")\n  .setMaxIter(100)   // boosting rounds\n  .setMaxDepth(5)    // tree depth\n\nval gbtModel = gbt.fit(trainDF)\nval gbtPred = gbtModel.transform(testDF)\n\nval gbtRMSE = evaluator.setMetricName(\"rmse\").evaluate(gbtPred)\nval gbtR2   = evaluator.setMetricName(\"r2\").evaluate(gbtPred)\n\nprintln(s\"Gradient Boosted Trees -> RMSE: $gbtRMSE , R2: $gbtR2\")",
+      "user": "anonymous",
+      "dateUpdated": "2025-12-17T07:37:48+0000",
+      "progress": 0,
+      "config": {
+        "editorSetting": {
+          "language": "scala",
+          "editOnDblClick": false,
+          "completionKey": "TAB",
+          "completionSupport": true
+        },
+        "colWidth": 12,
+        "editorMode": "ace/mode/scala",
+        "fontSize": 9,
+        "results": {},
+        "enabled": true
+      },
+      "settings": {
+        "params": {},
+        "forms": {}
+      },
+      "results": {
+        "code": "SUCCESS",
+        "msg": [
+          {
+            "type": "TEXT",
+            "data": "Gradient Boosted Trees -> RMSE: 0.4910231530781777 , R2: 0.826056240402874\nimport org.apache.spark.ml.regression.GBTRegressor\n\u001b[1m\u001b[34mgbt\u001b[0m: \u001b[1m\u001b[32morg.apache.spark.ml.regression.GBTRegressor\u001b[0m = gbtr_9a0ca59c078c\n\u001b[1m\u001b[34mgbtModel\u001b[0m: \u001b[1m\u001b[32morg.apache.spark.ml.regression.GBTRegressionModel\u001b[0m = GBTRegressionModel (uid=gbtr_9a0ca59c078c) with 100 trees\n\u001b[1m\u001b[34mgbtPred\u001b[0m: \u001b[1m\u001b[32morg.apache.spark.sql.DataFrame\u001b[0m = [precipitation_hours: double, sunshine_duration: double ... 4 more fields]\n\u001b[1m\u001b[34mgbtRMSE\u001b[0m: \u001b[1m\u001b[32mDouble\u001b[0m = 0.4910231530781777\n\u001b[1m\u001b[34mgbtR2\u001b[0m: \u001b[1m\u001b[32mDouble\u001b[0m = 0.826056240402874\n"
+          }
+        ]
+      },
+      "apps": [],
+      "runtimeInfos": {},
+      "progressUpdateIntervalMs": 500,
+      "jobName": "paragraph_1765957068716_1785955961",
+      "id": "paragraph_1765914230348_1463253128",
+      "dateCreated": "2025-12-17T07:37:48+0000",
+      "status": "READY",
+      "$$hashKey": "object:1550"
+    },
+    {
+      "text": "%spark\nval comparisonDF = Seq(\n  (\"Linear Regression\", lrRMSE, lrR2),\n  (\"Random Forest\", rfRMSE, rfR2),\n  (\"Gradient Boosted Trees\", gbtRMSE, gbtR2)\n).toDF(\"Model\", \"RMSE\", \"R2\")\n\ncomparisonDF.show()",
+      "user": "anonymous",
+      "dateUpdated": "2025-12-17T07:37:48+0000",
+      "progress": 0,
+      "config": {
+        "editorSetting": {
+          "language": "scala",
+          "editOnDblClick": false,
+          "completionKey": "TAB",
+          "completionSupport": true
+        },
+        "colWidth": 12,
+        "editorMode": "ace/mode/scala",
+        "fontSize": 9,
+        "results": {},
+        "enabled": true
+      },
+      "settings": {
+        "params": {},
+        "forms": {}
+      },
+      "results": {
+        "code": "SUCCESS",
+        "msg": [
+          {
+            "type": "TEXT",
+            "data": "+--------------------+------------------+------------------+\n|               Model|              RMSE|                R2|\n+--------------------+------------------+------------------+\n|   Linear Regression|0.5502807198322689|0.7815392076411974|\n|       Random Forest|0.5055939349796188|0.8155797432802966|\n|Gradient Boosted ...|0.4910231530781777| 0.826056240402874|\n+--------------------+------------------+------------------+\n\n\u001b[1m\u001b[34mcomparisonDF\u001b[0m: \u001b[1m\u001b[32morg.apache.spark.sql.DataFrame\u001b[0m = [Model: string, RMSE: double ... 1 more field]\n"
+          }
+        ]
+      },
+      "apps": [],
+      "runtimeInfos": {},
+      "progressUpdateIntervalMs": 500,
+      "jobName": "paragraph_1765957068716_1992711758",
+      "id": "paragraph_1765914304314_426017214",
+      "dateCreated": "2025-12-17T07:37:48+0000",
+      "status": "READY",
+      "$$hashKey": "object:1551"
+    },
+    {
+      "text": "%spark\ngbtModel.featureImportances",
+      "user": "anonymous",
+      "dateUpdated": "2025-12-17T07:37:48+0000",
+      "progress": 0,
+      "config": {
+        "editorSetting": {
+          "language": "scala",
+          "editOnDblClick": false,
+          "completionKey": "TAB",
+          "completionSupport": true
+        },
+        "colWidth": 12,
+        "editorMode": "ace/mode/scala",
+        "fontSize": 9,
+        "results": {},
+        "enabled": true
+      },
+      "settings": {
+        "params": {},
+        "forms": {}
+      },
+      "results": {
+        "code": "SUCCESS",
+        "msg": [
+          {
+            "type": "TEXT",
+            "data": "\u001b[1m\u001b[34mres36\u001b[0m: \u001b[1m\u001b[32morg.apache.spark.ml.linalg.Vector\u001b[0m = (3,[0,1,2],[0.33226089536224485,0.34119095071655986,0.32654815392119524])\n"
+          }
+        ]
+      },
+      "apps": [],
+      "runtimeInfos": {},
+      "progressUpdateIntervalMs": 500,
+      "jobName": "paragraph_1765957068716_1611760560",
+      "id": "paragraph_1765914443744_358332940",
+      "dateCreated": "2025-12-17T07:37:48+0000",
+      "status": "READY",
+      "$$hashKey": "object:1552"
+    },
+    {
+      "text": "%spark\nval may2026DF = Seq(\n  (3.0, 18000.0, 2.0)\n).toDF(\"precipitation_hours\", \"sunshine_duration\", \"wind_speed\")\n\nval may2026Features = assembler.transform(may2026DF)\n\ngbtModel.transform(may2026Features).show()",
+      "user": "anonymous",
+      "dateUpdated": "2025-12-17T07:37:48+0000",
+      "progress": 0,
+      "config": {
+        "editorSetting": {
+          "language": "scala",
+          "editOnDblClick": false,
+          "completionKey": "TAB",
+          "completionSupport": true
+        },
+        "colWidth": 12,
+        "editorMode": "ace/mode/scala",
+        "fontSize": 9,
+        "results": {},
+        "enabled": true
+      },
+      "settings": {
+        "params": {},
+        "forms": {}
+      },
+      "results": {
+        "code": "SUCCESS",
+        "msg": [
+          {
+            "type": "TEXT",
+            "data": "+-------------------+-----------------+----------+-----------------+------------------+\n|precipitation_hours|sunshine_duration|wind_speed|         features|        prediction|\n+-------------------+-----------------+----------+-----------------+------------------+\n|                3.0|          18000.0|       2.0|[3.0,18000.0,2.0]|2.9541015520497482|\n+-------------------+-----------------+----------+-----------------+------------------+\n\n\u001b[1m\u001b[34mmay2026DF\u001b[0m: \u001b[1m\u001b[32morg.apache.spark.sql.DataFrame\u001b[0m = [precipitation_hours: double, sunshine_duration: double ... 1 more field]\n\u001b[1m\u001b[34mmay2026Features\u001b[0m: \u001b[1m\u001b[32morg.apache.spark.sql.DataFrame\u001b[0m = [precipitation_hours: double, sunshine_duration: double ... 2 more fields]\n"
+          }
+        ]
+      },
+      "apps": [],
+      "runtimeInfos": {},
+      "progressUpdateIntervalMs": 500,
+      "jobName": "paragraph_1765957068716_315391722",
+      "id": "paragraph_1765914723591_1076566826",
+      "dateCreated": "2025-12-17T07:37:48+0000",
+      "status": "READY",
+      "$$hashKey": "object:1553"
+    },
+    {
+      "text": "%spark\n// Filter the predictions to find days where the model predicts Low ET0 (< 1.5)\nval lowET0Conditions = gbtPred\n  .filter($\"prediction\" < 1.5)\n\nprintln(\"Analyzing weather conditions required for Low ET0 (< 1.5mm)...\")\n\n// Calculate the average weather for these specific low-evaporation days\nval requiredConditions = lowET0Conditions\n  .agg(\n    round(avg(\"precipitation_hours\"), 2).alias(\"avg_required_precip\"),\n    round(avg(\"sunshine_duration\"), 2).alias(\"avg_required_sunshine\"),\n    round(avg(\"wind_speed\"), 2).alias(\"avg_required_wind\"),\n    round(avg(\"prediction\"), 2).alias(\"avg_predicted_et0\")\n  )\n\nrequiredConditions.show()",
+      "user": "anonymous",
+      "dateUpdated": "2025-12-17T07:37:48+0000",
+      "progress": 0,
+      "config": {
+        "editorSetting": {
+          "language": "scala",
+          "editOnDblClick": false,
+          "completionKey": "TAB",
+          "completionSupport": true
+        },
+        "colWidth": 12,
+        "editorMode": "ace/mode/scala",
+        "fontSize": 9,
+        "results": {},
+        "enabled": true
+      },
+      "settings": {
+        "params": {},
+        "forms": {}
+      },
+      "results": {
+        "code": "SUCCESS",
+        "msg": [
+          {
+            "type": "TEXT",
+            "data": "Analyzing weather conditions required for Low ET0 (< 1.5mm)...\n+-------------------+---------------------+-----------------+-----------------+\n|avg_required_precip|avg_required_sunshine|avg_required_wind|avg_predicted_et0|\n+-------------------+---------------------+-----------------+-----------------+\n|              23.48|              1682.69|            14.72|             1.36|\n+-------------------+---------------------+-----------------+-----------------+\n\n\u001b[1m\u001b[34mlowET0Conditions\u001b[0m: \u001b[1m\u001b[32morg.apache.spark.sql.Dataset[org.apache.spark.sql.Row]\u001b[0m = [precipitation_hours: double, sunshine_duration: double ... 4 more fields]\n\u001b[1m\u001b[34mrequiredConditions\u001b[0m: \u001b[1m\u001b[32morg.apache.spark.sql.DataFrame\u001b[0m = [avg_required_precip: double, avg_required_sunshine: double ... 2 more fields]\n"
+          }
+        ]
+      },
+      "apps": [],
+      "runtimeInfos": {},
+      "progressUpdateIntervalMs": 500,
+      "jobName": "paragraph_1765957068716_1888376157",
+      "id": "paragraph_1765914748010_446193907",
+      "dateCreated": "2025-12-17T07:37:48+0000",
+      "status": "READY",
+      "$$hashKey": "object:1554"
+    },
+    {
+      "text": "%spark\n",
+      "user": "anonymous",
+      "dateUpdated": "2025-12-17T07:37:48+0000",
+      "progress": 0,
+      "config": {
+        "editorSetting": {
+          "language": "scala",
+          "editOnDblClick": false,
+          "completionKey": "TAB",
+          "completionSupport": true
+        },
+        "colWidth": 12,
+        "editorMode": "ace/mode/scala",
+        "fontSize": 9,
+        "results": {},
+        "enabled": true
+      },
+      "settings": {
+        "params": {},
+        "forms": {}
+      },
+      "apps": [],
+      "runtimeInfos": {},
+      "progressUpdateIntervalMs": 500,
+      "jobName": "paragraph_1765957068717_1073711456",
+      "id": "paragraph_1765915110465_716115171",
+      "dateCreated": "2025-12-17T07:37:48+0000",
+      "status": "READY",
+      "$$hashKey": "object:1555"
+    }
+  ],
+  "name": "Task 3",
+  "id": "2MC767XSJ",
+  "defaultInterpreterGroup": "spark",
+  "version": "0.9.0",
+  "noteParams": {},
+  "noteForms": {},
+  "angularObjects": {},
+  "config": {
+    "isZeppelinNotebookCronEnable": false,
+    "looknfeel": "default",
+    "personalizedMode": "false"
+  },
+  "info": {},
+  "path": "/Task 3"
+}
