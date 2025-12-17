@@ -18,7 +18,6 @@ public class PrecipitationTemperatureReducer extends Reducer<Text, Text, Text, T
 
         for (Text value : values) {
             String[] parts = value.toString().split(",");
-            System.err.println("DEBUG: key: " + key.toString() + " fields: " + Arrays.toString(parts));
 
             if (parts.length == 3) {
                 try {
@@ -42,5 +41,4 @@ public class PrecipitationTemperatureReducer extends Reducer<Text, Text, Text, T
             context.write(key,outValue);
         }
     }
-
 }

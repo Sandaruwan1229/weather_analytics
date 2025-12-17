@@ -36,7 +36,6 @@ public class PrecipitationTemperatureWithLocationReducer extends Reducer<Text, T
                     String locationId = fields[0].trim();
                     String districtName = fields[7].trim();
                     locationMap.put(locationId, districtName);
-                    System.out.println("DEBUG: locationId: " + locationId + " districtName: " + districtName);
                 }
             }
         }
@@ -53,7 +52,6 @@ public class PrecipitationTemperatureWithLocationReducer extends Reducer<Text, T
 
         for (Text value : values) {
             String[] fields = value.toString().split(",");
-            System.err.println("DEBUG: key: " + key.toString() + " fields: " + Arrays.toString(fields));
 
             if (fields.length == 2) {
                 try{

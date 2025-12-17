@@ -25,4 +25,4 @@ select
     record_count
 from ranked_cities
 where temperature_rank <= 10
-order by temperature_rank desc;
+order by temperature_rank asc;

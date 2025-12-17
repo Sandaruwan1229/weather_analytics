@@ -17,20 +17,18 @@ with seasonal_data as (
 seasonal_averages as (
     select
         city_name,
-        year_val,
         agricultural_season,
         AVG(et0_fao_evapotranspiration) as avg_evapotranspiration,
         count(*) as record_count
     from seasonal_data
     where agricultural_season != 'Unknown'
-    group by city_name, year_val, agricultural_season
+    group by city_name, agricultural_season
     having count(*) >= 30
 )
 select 
     city_name,
     agricultural_season,
-    year_val,
     ROUND(avg_evapotranspiration, 3) as avg_evapotranspiration_mm,
     record_count
 from seasonal_averages
-order by city_name,agricultural_season, year_val;
+order by city_name,agricultural_season;

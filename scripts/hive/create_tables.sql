@@ -1,7 +1,30 @@
 create database weather_analytics;
 use weather_analytics;
 
-CREATE TABLE weather_data (location_id INT, weather_date STRING,weather_code INT,temperature_2m_max DOUBLE,temperature_2m_min DOUBLE,temperature_2m_mean DOUBLE,apparent_temperature_max DOUBLE,apparent_temperature_min DOUBLE,apparent_temperature_mean DOUBLE,daylight_duration DOUBLE,sunshine_duration DOUBLE,precipitation_sum DOUBLE,rain_sum DOUBLE,precipitation_hours DOUBLE,wind_speed_10m_max DOUBLE,wind_gusts_10m_max DOUBLE,wind_direction_10m_dominant DOUBLE,shortwave_radiation_sum DOUBLE,et0_fao_evapotranspiration DOUBLE,sunrise STRING,sunset STRING) ROW format delimited fields terminated by ',' STORED AS TEXTFILE TBLPROPERTIES ("skip.header.line.count"="1");
+CREATE TABLE weather_data (
+    location_id INT, 
+    weather_date STRING,
+    weather_code INT,
+    temperature_2m_max DOUBLE,
+    temperature_2m_min DOUBLE,
+    temperature_2m_mean DOUBLE,
+    apparent_temperature_max DOUBLE,
+    apparent_temperature_min DOUBLE,
+    apparent_temperature_mean DOUBLE,
+    daylight_duration DOUBLE,
+    sunshine_duration DOUBLE,
+    precipitation_sum DOUBLE,
+    rain_sum DOUBLE,
+    precipitation_hours DOUBLE,
+    wind_speed_10m_max DOUBLE,
+    wind_gusts_10m_max DOUBLE,
+    wind_direction_10m_dominant DOUBLE,
+    shortwave_radiation_sum DOUBLE,
+    et0_fao_evapotranspiration DOUBLE,
+    sunrise STRING,sunset STRING
+    ) 
+ROW format delimited fields terminated by ',' 
+STORED AS TEXTFILE TBLPROPERTIES ("skip.header.line.count"="1");
 
 
 ALTER TABLE weather_data SET TBLPROPERTIES ("skip.header.line.count"="1"); 

@@ -43,4 +43,14 @@ public class WeatherJobUtils {
 
         return String.format("%04d-%02d", year, month);
     }
+
+    public static Integer getYearKey(String dateString) throws ParseException {
+        Date date = parseDate(dateString);
+        Instant instant = date.toInstant();
+        LocalDate localDate = instant.atZone(ZoneId.systemDefault()).toLocalDate();
+
+        int year = localDate.getYear();
+
+        return year;
+    }
 }

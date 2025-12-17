@@ -8,6 +8,7 @@ import java.io.IOException;
 import java.text.ParseException;
 
 import static org.weather.utils.WeatherJobUtils.getYearMonthKey;
+import static org.weather.utils.WeatherJobUtils.getYearKey;
 import static org.weather.utils.WeatherJobUtils.isValidValue;
 
 public class PrecipitationTemperatureMapper extends Mapper<LongWritable, Text, Text, Text> {
@@ -37,12 +38,16 @@ public class PrecipitationTemperatureMapper extends Mapper<LongWritable, Text, T
 
         try {
             String yearMonth = getYearMonthKey(date);
-            double precipitation = Double.parseDouble(precipitationHours);
-            double temperature = Double.parseDouble(tempMean);
+            int yearKey = getYearKey(date);
 
-            outKey.set(locationId+","+yearMonth);
-            outValue.set(precipitation+","+temperature+",1");
-            context.write(outKey, outValue);
+            if(yearKey >=2014){
+                double precipitation = Double.parseDouble(precipitationHours);
+                double temperature = Double.parseDouble(tempMean);
+
+                outKey.set(locationId+","+yearMonth);
+                outValue.set(precipitation+","+temperature+",1");
+                context.write(outKey, outValue);
+            }
 
         } catch (ParseException e) {
             throw new RuntimeException(e);
